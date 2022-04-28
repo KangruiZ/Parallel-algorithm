@@ -51,15 +51,40 @@ void add_float_neon1(float* dst, float* src1, float* src2, int size)
         src2++;
     }
 }
-
+void vec_multiply_vec_plus_vec_float(float* dst, float* src1, float* src2, float* src3, int size)
+{
+    int frag_len = 4;
+    int main_loop = size / frag_len;
+    for (int i = 0; i < main_loop; i++)
+    {
+        float32x4_t in1, in2, in3, out;
+        in1 = vld1q_f32(src1);
+        in2 = vld1q_f32(src2);
+        in3 = vld1q_f32(src3);
+        out = vmlsq_f32(in1, in2, in3);
+        vst1q_f32(dst, out);
+        src1 += frag_len; src2 += frag_len; src3 += frag_len; dst += frag_len;
+#if defined (__aarch64__)
+#endif
+    }
+    int residual = size - main_loop * frag_len;
+    for (int j = 0; j < residual; j++)
+    {
+        *dst = *src1 + *src2;
+        dst++;
+        src1++;
+        src2++;
+    }
+}
 int main()
 {
     float src1[9] = { 1,2,3,4,5,6,7,8,9 };
     float src2[9] = { 2,3,4,4,5,6,7,8,9 };
+    float src3[9] = { 2,3,4,4,5,6,7,8,9 };
     float dst[9];
-    int size = 9;
+    int size = 6;
     float factor = 2;
-    add_float_neon1(dst, src1, src2, size);
+    vec_multiply_vec_plus_vec_float(dst, src2, src1, src3, size);
     //scaler_multiply_vec_float(dst, src1, factor, size);
     for (int i = 0; i < 9; i++)
     {
