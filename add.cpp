@@ -76,19 +76,47 @@ void vec_multiply_vec_plus_vec_float(float* dst, float* src1, float* src2, float
         src2++;
     }
 }
+void scaler_multiply_vec_aligned_float(float* dst, float* src, float factor, int k, int size)
+{
+    int frag_len = 4;
+    int initial_pos = k / frag_len;
+    int aa = k - initial_pos * frag_len;
+    for (int j = 0; j < aa; j++)
+    {
+        *dst = *src * factor;
+        dst++;
+        src++;
+    }
+    int main_loop = (size-aa) / frag_len;
+    float32x4_t factor_vct = vdupq_n_f32(factor);
+    for (int i = 0; i < main_loop; i++)
+    {
+        float32x4_t src_vct = vld1q_f32(src);
+        float32x4_t dst_vct = vmulq_f32(src_vct, factor_vct);
+        vst1q_f32(dst, dst_vct);
+        src += frag_len, dst += frag_len;
+    }
+    int bb = size-aa - main_loop * frag_len;
+    for (int j = 0; j < bb; j++)
+    {
+        *dst = *src * factor;
+        dst++;
+        src++;
+    }
+}
 int main()
 {
     float src1[9] = { 1,2,3,4,5,6,7,8,9 };
     float src2[9] = { 2,3,4,4,5,6,7,8,9 };
     float src3[9] = { 2,3,4,4,5,6,7,8,9 };
     float dst[9];
-    int size = 6;
+    int size = 9;
     float factor = 2;
-    vec_multiply_vec_plus_vec_float(dst, src2, src1, src3, size);
-    //scaler_multiply_vec_float(dst, src1, factor, size);
+    int k = 1;
+    scaler_multiply_vec_aligned_float(src1 + k +1, src1 + k + 1, 1.0 / 2, k + 1, size - k);
     for (int i = 0; i < 9; i++)
     {
-        printf("%f\n", dst[i]);
+        printf("%f\n", src1[i]);
     }
     return 0;
 }

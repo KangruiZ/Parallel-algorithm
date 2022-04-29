@@ -86,7 +86,7 @@ void add_vec_float(float* dst, float* src1, float* src2, int size)
 void scaler_multiply_vec_float(float* dst, float* src, float factor, int size)
 {
     int frag_len = 4;
-    int main_loop = size / frag_len;                 //一个循环处理8个数据，则需要 size / 4个循环
+    int main_loop = size / frag_len;                 //一个循环处理4个数据，则需要 size / 4个循环
     float32x4_t factor_vct = vdupq_n_f32(factor); //将系数factor装载入neon寄存器 
     for (int i = 0; i < main_loop; i++)
     {
@@ -95,7 +95,7 @@ void scaler_multiply_vec_float(float* dst, float* src, float factor, int size)
         vst1q_f32(dst, dst_vct);              //将dst_vct寄存器中的结果放回内存中
         src += frag_len, dst += frag_len;                 //改变地址，指向下个循环要处理的数据。
     }
-    int aa = size - main_loop * frag_len;          //考虑到size不能被8整除的情况
+    int aa = size - main_loop * frag_len;          //考虑到size不能被4整除的情况
     for (int j = 0; j < aa; j++)
     {
         *dst = *src * factor;
@@ -138,24 +138,95 @@ void LU_neon(int n, m_size src[][maxN]) {
         }
     }
 }
-
+void scaler_multiply_vec_aligned_float(float* dst, float* src, float factor, int k, int size)
+{
+    int frag_len = 4;
+    int initial_pos = k / frag_len;
+    int aa = k - initial_pos * frag_len;
+    for (int j = 0; j < aa; j++)
+    {
+        *dst = *src * factor;
+        dst++;
+        src++;
+    }
+    int main_loop = (size - aa) / frag_len;
+    float32x4_t factor_vct = vdupq_n_f32(factor);
+    for (int i = 0; i < main_loop; i++)
+    {
+        float32x4_t src_vct = vld1q_f32(src);
+        float32x4_t dst_vct = vmulq_f32(src_vct, factor_vct);
+        vst1q_f32(dst, dst_vct);
+        src += frag_len, dst += frag_len;
+    }
+    int bb = size - aa - main_loop * frag_len;
+    for (int j = 0; j < bb; j++)
+    {
+        *dst = *src * factor;
+        dst++;
+        src++;
+    }
+}
+void scaler_multiply_vec_subtract_vec_aligned_float(float* dst, float* src1, float* src2, float factor,int k, int size)
+{
+    int frag_len = 4;
+    int initial_pos = k / frag_len;
+    int aa = k - initial_pos * frag_len;
+    for (int j = 0; j < aa; j++)
+    {
+        *dst = *src1 - *src2 * factor;
+        dst++;
+        src1++;
+        src2++;
+    }
+    int main_loop = (size-aa) / frag_len;
+    float32x4_t factor_vec = vdupq_n_f32(factor);
+    for (int i = 0; i < main_loop; i++)
+    {
+        float32x4_t in1, in2, out;
+        in1 = vld1q_f32(src1);
+        in2 = vld1q_f32(src2);
+        out = vmlsq_f32(in1, in2, factor_vec);
+        vst1q_f32(dst, out);
+        src1 += frag_len; src2 += frag_len; dst += frag_len;
+#if defined (__aarch64__)
+#endif
+    }
+    int residual = size - aa - main_loop * frag_len;
+    for (int j = 0; j < residual; j++)
+    {
+        *dst = *src1 - *src2 * factor;
+        dst++;
+        src1++;
+        src2++;
+    }
+}
+void LU_neon_aligned(int n, m_size src[][maxN]) {
+    for (int k = 0; k < n; k++) {
+        scaler_multiply_vec_aligned_float(src[k] + k + 1, src[k] + k + 1, 1.0 / src[k][k], k + 1, n - k);
+        src[k][k] = 1.0;
+        for (int i = k + 1; i < n; i++) {
+            scaler_multiply_vec_subtract_vec_aligned_float(src[i] + k + 1, src[i] + k + 1, src[k] + k + 1, src[i][k],k+1, n - k);
+            src[i][k] = 0.0;
+        }
+    }
+}
 int main()
 {
     int num;
     //num = 1024;
-    num = 6;
+    num = 512;
     Timer timer;
     gen_matrix(num);
     dup_matrix(num, A, B);
-    print_matrix(num,A);
+    //print_matrix(num,A);
     timer.Start();
     LU(num, A);
     timer.Stop("time:");
-    print_matrix(num,A);
+    //print_matrix(num,A);
     timer.Start();
+    //LU_neon(num, B);
     LU_neon(num, B);
     timer.Stop("neon time:");
-    print_matrix(num,B);
-
+    //print_matrix(num,B);
     return 0;
 }

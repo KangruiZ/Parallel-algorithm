@@ -1,2 +1,2 @@
-aarch64-linux-gnu-g++ -o gaussian Timer.h gaussian.cpp -static
+aarch64-linux-gnu-g++ -O2 -o gaussian Timer.h gaussian.cpp -static
 qemu-aarch64 gaussian
