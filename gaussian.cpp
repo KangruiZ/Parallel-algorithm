@@ -210,11 +210,12 @@ void LU_neon_aligned(int n, m_size src[][maxN]) {
         }
     }
 }
-int main()
+int main(int argc,char* argv[])
 {
     int num;
-    //num = 1024;
-    num = 512;
+    if (argc > 2)return 0;
+    if (argc == 2) num = atoi(argv[1]);
+    else num = 8;
     Timer timer;
     gen_matrix(num);
     dup_matrix(num, A, B);
