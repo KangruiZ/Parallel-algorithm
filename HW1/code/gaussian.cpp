@@ -1,19 +1,19 @@
 #include<arm_neon.h>
 #include<stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <iostream>
 #include <iomanip>
 #include "Timer.h"
 
 using namespace std;
 
-const int maxN = 1024;
+const int maxN = 10000;
 const int rand_range = 100;
 
 typedef float m_size;
 m_size A[maxN][maxN];
 m_size B[maxN][maxN];
+m_size C[maxN][maxN];
 
 
 void print_matrix(int n, m_size mat[][maxN]) {
@@ -56,30 +56,6 @@ void LU(int n, m_size src[][maxN]) {
             }
             src[i][k] = 0.0;
         }
-    }
-}
-void add_vec_float(float* dst, float* src1, float* src2, int size)
-{
-    int frag_len = 4;
-    int main_loop = size / frag_len;
-    for (int i = 0; i < main_loop; i++)
-    {
-        float32x4_t in1, in2, out;
-        in1 = vld1q_f32(src1);
-        in2 = vld1q_f32(src2);
-        out = vaddq_f32(in1, in2);
-        vst1q_f32(dst, out);
-        src1 += frag_len; src2 += frag_len; dst += frag_len;
-#if defined (__aarch64__)
-#endif
-    }
-    int residual = size - main_loop * frag_len;
-    for (int j = 0; j < residual; j++)
-    {
-        *dst = *src1 + *src2;
-        dst++;
-        src1++;
-        src2++;
     }
 }
 
@@ -166,7 +142,7 @@ void scaler_multiply_vec_aligned_float(float* dst, float* src, float factor, int
         src++;
     }
 }
-void scaler_multiply_vec_subtract_vec_aligned_float(float* dst, float* src1, float* src2, float factor,int k, int size)
+void scaler_multiply_vec_subtract_vec_aligned_float(float* dst, float* src1, float* src2, float factor, int k, int size)
 {
     int frag_len = 4;
     int initial_pos = k / frag_len;
@@ -178,7 +154,7 @@ void scaler_multiply_vec_subtract_vec_aligned_float(float* dst, float* src1, flo
         src1++;
         src2++;
     }
-    int main_loop = (size-aa) / frag_len;
+    int main_loop = (size - aa) / frag_len;
     float32x4_t factor_vec = vdupq_n_f32(factor);
     for (int i = 0; i < main_loop; i++)
     {
@@ -205,12 +181,12 @@ void LU_neon_aligned(int n, m_size src[][maxN]) {
         scaler_multiply_vec_aligned_float(src[k] + k + 1, src[k] + k + 1, 1.0 / src[k][k], k + 1, n - k);
         src[k][k] = 1.0;
         for (int i = k + 1; i < n; i++) {
-            scaler_multiply_vec_subtract_vec_aligned_float(src[i] + k + 1, src[i] + k + 1, src[k] + k + 1, src[i][k],k+1, n - k);
+            scaler_multiply_vec_subtract_vec_aligned_float(src[i] + k + 1, src[i] + k + 1, src[k] + k + 1, src[i][k], k + 1, n - k);
             src[i][k] = 0.0;
         }
     }
 }
-int main(int argc,char* argv[])
+int main(int argc, char* argv[])
 {
     int num;
     if (argc > 2)return 0;
@@ -225,7 +201,6 @@ int main(int argc,char* argv[])
     timer.Stop("time:");
     //print_matrix(num,A);
     timer.Start();
-    //LU_neon(num, B);
     LU_neon(num, B);
     timer.Stop("neon time:");
     //print_matrix(num,B);
